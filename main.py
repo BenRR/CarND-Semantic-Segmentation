@@ -5,9 +5,9 @@ import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
 
-
 # Check TensorFlow Version
-assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
+assert LooseVersion(tf.__version__) >= LooseVersion(
+    '1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using {}'.format(tf.__version__)
 print('TensorFlow Version: {}'.format(tf.__version__))
 
 # Check for a GPU
@@ -27,13 +27,18 @@ def load_vgg(sess, vgg_path):
     # TODO: Implement function
     #   Use tf.saved_model.loader.load to load the model and weights
     vgg_tag = 'vgg16'
+    tf.saved_model.loader.load(sess, [vgg_tag], vgg_path)
     vgg_input_tensor_name = 'image_input:0'
     vgg_keep_prob_tensor_name = 'keep_prob:0'
     vgg_layer3_out_tensor_name = 'layer3_out:0'
     vgg_layer4_out_tensor_name = 'layer4_out:0'
     vgg_layer7_out_tensor_name = 'layer7_out:0'
-    
-    return None, None, None, None, None
+
+    return tf.get_default_graph().get_tensor_by_name(vgg_input_tensor_name), \
+           tf.get_default_graph().get_tensor_by_name(vgg_keep_prob_tensor_name), \
+           tf.get_default_graph().get_tensor_by_name(vgg_layer3_out_tensor_name), \
+           tf.get_default_graph().get_tensor_by_name(vgg_layer4_out_tensor_name), \
+           tf.get_default_graph().get_tensor_by_name(vgg_layer7_out_tensor_name)
 tests.test_load_vgg(load_vgg, tf)
 
 
@@ -48,6 +53,8 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     """
     # TODO: Implement function
     return None
+
+
 tests.test_layers(layers)
 
 
@@ -61,7 +68,15 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     :return: Tuple of (logits, train_op, cross_entropy_loss)
     """
     # TODO: Implement function
-    return None, None, None
+    logits = tf.reshape(nn_last_layer, [-1, num_classes])
+    labels = tf.reshape(correct_label, [-1, num_classes])
+    raw_loss = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+    loss = tf.reduce_mean(raw_loss)
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+    train_op = optimizer.minimize(loss)
+    return logits, train_op, loss
+
+
 tests.test_optimize(optimize)
 
 
@@ -81,7 +96,15 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     # TODO: Implement function
-    pass
+    sess.run(tf.global_variables_initializer())
+    print("Start Training")
+    for i in range(1, epochs + 1):
+        print('Epoch [{}]'.format(i))
+        for input, label in get_batches_fn(batch_size):
+            _, loss = sess.run([train_op, cross_entropy_loss],
+                               feed_dict={input_image: input, correct_label: label, keep_prob: 0.5, learning_rate: 0.001})
+            print('Loss [{:.6f}]'.format(loss))
+    return
 tests.test_train_nn(train_nn)
 
 
@@ -107,6 +130,9 @@ def run():
 
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
+
+        epochs = 30
+        batch_size = 8
 
         # TODO: Build NN using load_vgg, layers, and optimize function
 
