@@ -39,6 +39,8 @@ def load_vgg(sess, vgg_path):
            tf.get_default_graph().get_tensor_by_name(vgg_layer3_out_tensor_name), \
            tf.get_default_graph().get_tensor_by_name(vgg_layer4_out_tensor_name), \
            tf.get_default_graph().get_tensor_by_name(vgg_layer7_out_tensor_name)
+
+
 tests.test_load_vgg(load_vgg, tf)
 
 
@@ -52,7 +54,25 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     :return: The Tensor for the last layer of output
     """
     # TODO: Implement function
-    return None
+    conv1_by_1_l7 = tf.layers.conv2d(vgg_layer7_out, num_classes, 1,
+                                     padding='same',
+                                     kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    output = tf.layers.conv2d_transpose(conv1_by_1_l7, num_classes, 4, strides=(2, 2),
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    conv1_by_1_l4 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1,
+                                     padding='same',
+                                     kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    output = tf.add(output, conv1_by_1_l4)
+    output = tf.layers.conv2d_transpose(output, num_classes, 4, strides=(2, 2),
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    conv1_by_1_l3 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1,
+                                     padding='same',
+                                     kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    output = tf.add(output, conv1_by_1_l3)
+    output = tf.layers.conv2d_transpose(output, num_classes, 16, strides=(8, 8),
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    return output
 
 
 tests.test_layers(layers)
@@ -72,6 +92,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     labels = tf.reshape(correct_label, [-1, num_classes])
     raw_loss = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)
     loss = tf.reduce_mean(raw_loss)
+    loss = loss + sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
     train_op = optimizer.minimize(loss)
     return logits, train_op, loss
@@ -102,9 +123,12 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
         print('Epoch [{}]'.format(i))
         for input, label in get_batches_fn(batch_size):
             _, loss = sess.run([train_op, cross_entropy_loss],
-                               feed_dict={input_image: input, correct_label: label, keep_prob: 0.5, learning_rate: 0.001})
+                               feed_dict={input_image: input, correct_label: label, keep_prob: 0.5,
+                                          learning_rate: 0.001})
             print('Loss [{:.6f}]'.format(loss))
     return
+
+
 tests.test_train_nn(train_nn)
 
 
@@ -139,7 +163,18 @@ def run():
         # TODO: Train NN using the train_nn function
 
         # TODO: Save inference data using helper.save_inference_samples
-        #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+        correct_label = tf.placeholder(tf.int32, [None, None, None, num_classes], name='correct_label')
+        learning_rate = tf.placeholder(tf.float32, name='learning_rate')
+
+        image_input, keep_prob, vgg_layer3_out, vgg_layer4_out, vgg_layer7_out = load_vgg(sess, vgg_path)
+
+        output = layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes)
+
+        logits, train_op, cross_entropy_loss = optimize(output, correct_label, learning_rate, num_classes)
+        train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, image_input,
+                 correct_label, keep_prob, learning_rate)
+
+        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, image_input)
 
         # OPTIONAL: Apply the trained model to a video
 
