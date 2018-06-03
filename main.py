@@ -58,18 +58,21 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
                                      padding='same',
                                      kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     output = tf.layers.conv2d_transpose(conv1_by_1_l7, num_classes, 4, strides=(2, 2),
+                                        padding='same',
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     conv1_by_1_l4 = tf.layers.conv2d(vgg_layer4_out, num_classes, 1,
                                      padding='same',
                                      kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     output = tf.add(output, conv1_by_1_l4)
     output = tf.layers.conv2d_transpose(output, num_classes, 4, strides=(2, 2),
+                                        padding='same',
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     conv1_by_1_l3 = tf.layers.conv2d(vgg_layer3_out, num_classes, 1,
                                      padding='same',
                                      kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     output = tf.add(output, conv1_by_1_l3)
     output = tf.layers.conv2d_transpose(output, num_classes, 16, strides=(8, 8),
+                                        padding='same',
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
 
     return output
@@ -90,7 +93,7 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     # TODO: Implement function
     logits = tf.reshape(nn_last_layer, [-1, num_classes])
     labels = tf.reshape(correct_label, [-1, num_classes])
-    raw_loss = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+    raw_loss = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels)
     loss = tf.reduce_mean(raw_loss)
     loss = loss + sum(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
@@ -120,12 +123,14 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     sess.run(tf.global_variables_initializer())
     print("Start Training")
     for i in range(1, epochs + 1):
-        print('Epoch [{}]'.format(i))
+        print('Epoch {}'.format(i))
+        step = 1
         for input, label in get_batches_fn(batch_size):
             _, loss = sess.run([train_op, cross_entropy_loss],
                                feed_dict={input_image: input, correct_label: label, keep_prob: 0.5,
                                           learning_rate: 0.001})
-            print('Loss [{:.6f}]'.format(loss))
+            print('Step {} Loss {:.6f}'.format(step, loss))
+            step += 1
     return
 
 
@@ -155,7 +160,7 @@ def run():
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
-        epochs = 30
+        epochs = 1
         batch_size = 8
 
         # TODO: Build NN using load_vgg, layers, and optimize function
